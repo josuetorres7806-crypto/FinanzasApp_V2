@@ -41,4 +41,18 @@ class Validation extends BaseConfig
     // --------------------------------------------------------------------
     // Rules
     // --------------------------------------------------------------------
+    public array $ingreso = [
+
+    'descripcion' =>
+        'required|min_length[3]|max_length[255]',
+
+    'monto' =>
+        'required|decimal|greater_than[0]',
+
+    'fecha' =>
+        'required',
+
+    'categoria_id' =>
+        'permit_empty|integer'
+];
 }

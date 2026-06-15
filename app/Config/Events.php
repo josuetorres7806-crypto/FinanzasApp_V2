@@ -23,6 +23,95 @@ use CodeIgniter\HotReloader\HotReloader;
  *      Events::on('create', [$myInstance, 'myMethod']);
  */
 
+
+
+
+
+
+
+Events::on(
+    'ingreso_creado',
+    static function ($ingreso) {
+
+        log_message(
+            'info',
+            'Ingreso creado ID: ' . $ingreso->id
+        );
+
+    }
+);
+
+Events::on(
+    'ingreso_actualizado',
+    static function ($ingreso) {
+
+        log_message(
+            'info',
+            'Ingreso actualizado ID: ' . $ingreso->id
+        );
+
+    }
+);
+
+Events::on(
+    'ingreso_eliminado',
+    static function ($ingreso) {
+
+        log_message(
+            'info',
+            'Ingreso eliminado ID: ' . $ingreso->id
+        );
+
+    }
+);
+
+Events::on(
+    'gasto_creado',
+    static function ($gasto)
+    {
+        log_message(
+            'info',
+            'Gasto creado ID: '
+            . $gasto->id
+        );
+    }
+);
+
+Events::on(
+    'gasto_actualizado',
+    static function ($gasto)
+    {
+        log_message(
+            'info',
+            'Gasto actualizado ID: '
+            . $gasto->id
+        );
+    }
+);
+
+Events::on(
+    'gasto_eliminado',
+    static function ($gasto)
+    {
+        log_message(
+            'info',
+            'Gasto eliminado ID: '
+            . $gasto->id
+        );
+    }
+);
+
+Events::on(
+    'presupuesto_creado',
+    static function ($presupuesto)
+    {
+        log_message(
+            'info',
+            'Presupuesto creado ID: '
+            . $presupuesto->id
+        );
+    }
+);
 Events::on('pre_system', static function (): void {
     if (ENVIRONMENT !== 'testing') {
         $value = ini_get('zlib.output_compression');
@@ -52,6 +141,10 @@ Events::on('pre_system', static function (): void {
             service('routes')->get('__hot-reload', static function (): void {
                 (new HotReloader())->run();
             });
+
+            
         }
+        
     }
+    
 });

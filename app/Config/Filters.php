@@ -81,6 +81,12 @@ class Filters extends BaseFilters
             // 'secureheaders',
         ],
     ];
+    public array $aliases = [
+
+    'permission' =>
+        \App\Filters\PermissionFilter::class,
+
+    ];
 
     /**
      * List of filter aliases that works on a
