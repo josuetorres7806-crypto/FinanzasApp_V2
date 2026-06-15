@@ -2,16 +2,43 @@
 
 namespace App\Listeners;
 
-use CodeIgniter\Events\Events;
+use App\Services\DashboardService;
+use App\Services\NotificacionService;
 
-Events::on(
-    'ingreso_creado',
-    function($ingreso){
+class IngresoListener
+{
+    public function handle(array $ingreso): void
+    {
+        $dashboard =
+            new DashboardService();
 
-        log_message(
-            'info',
-            'Nuevo ingreso ID: ' .
-            $ingreso->id
+        $dashboard->actualizarCache(
+            $ingreso['usuario_id']
         );
+
+        if (
+            $ingreso['monto'] >= 1000000
+        ) {
+            $notificaciones =
+                new NotificacionService();
+
+            $notificaciones->crear([
+                'usuario_id' =>
+                    $ingreso['usuario_id'],
+
+                'titulo' =>
+                    'Ingreso importante',
+
+                'mensaje' =>
+                    'Se registró un ingreso por '
+                    . number_format(
+                        $ingreso['monto'],
+                        2
+                    ),
+
+                'tipo' =>
+                    'INGRESO_IMPORTANTE'
+            ]);
+        }
     }
-);
+}

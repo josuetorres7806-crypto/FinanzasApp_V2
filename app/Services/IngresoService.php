@@ -2,216 +2,120 @@
 
 namespace App\Services;
 
-use App\Repositories\IngresoRepository;
-use App\Services\AuditService;
-use App\Services\LogService;
+use App\Models\IngresoModel;
+use App\Models\CategoriaModel;
+use App\Models\MetaAhorroModel;
 use CodeIgniter\Events\Events;
+use Ramsey\Uuid\Uuid;
 use Exception;
 
 class IngresoService
 {
-    protected IngresoRepository $repository;
-    protected AuditService $audit;
-    protected LogService $logs;
-
-    public function __construct()
+    public function crear(array $data): array
     {
-        $this->repository = new IngresoRepository();
-        $this->audit = new AuditService();
-        $this->logs = new LogService();
-    }
+        $ingresos = new IngresoModel();
 
-    /**
-     * Crear ingreso
-     */
-    public function crear(
-        int $usuarioId,
-        array $data
-    )
-    {
-        $data['usuario_id'] = $usuarioId;
+        $categorias = new CategoriaModel();
 
-        $id = $this->repository->crear($data);
+        $metaModel = new MetaAhorroModel();
 
-        if (!$id) {
+        $audit = service('auditService');
+
+        $logs = service('logService');
+
+        $categoria = $categorias->find(
+            $data['categoria_id']
+        );
+
+        if (!$categoria) {
             throw new Exception(
-                'No fue posible crear el ingreso.'
+                'Categoría no encontrada'
             );
         }
 
-        $nuevoIngreso =
-            $this->repository->buscar($id);
-
-        if (!$nuevoIngreso) {
+        if ($categoria['tipo'] !== 'ingreso') {
             throw new Exception(
-                'No fue posible recuperar el ingreso creado.'
+                'La categoría no es de ingreso'
             );
         }
 
-        $this->audit->registrar(
-            $usuarioId,
+        $nuevo = [
+
+            'uuid' => Uuid::uuid4()->toString(),
+
+            'usuario_id' => $data['usuario_id'],
+
+            'categoria_id' => $data['categoria_id'],
+
+            'meta_ahorro_id' =>
+                $data['meta_ahorro_id'] ?? null,
+
+            'descripcion' =>
+                $data['descripcion'] ?? null,
+
+            'monto' =>
+                $data['monto'],
+
+            'fecha' =>
+                $data['fecha']
+        ];
+
+        $id = $ingresos->insert($nuevo);
+
+        $registro = $ingresos->find($id);
+
+        if (!empty($registro['meta_ahorro_id'])) {
+
+            $meta = $metaModel->find(
+                $registro['meta_ahorro_id']
+            );
+
+            if ($meta) {
+
+                $nuevoMonto =
+                    $meta['monto_actual']
+                    + $registro['monto'];
+
+                $estado = $meta['estado'];
+
+                if (
+                    $nuevoMonto >=
+                    $meta['monto_objetivo']
+                ) {
+                    $estado = 'completada';
+                }
+
+                $metaModel->update(
+                    $meta['id'],
+                    [
+                        'monto_actual' => $nuevoMonto,
+                        'estado' => $estado
+                    ]
+                );
+            }
+        }
+
+        $audit->registrar(
+            $registro['usuario_id'],
             'CREAR',
             'ingresos',
-            $id,
-            [],
-            $nuevoIngreso->toArray()
+            $registro['id'],
+            null,
+            $registro
         );
 
-        $this->logs->registrar(
-            $usuarioId,
+        $logs->info(
             'INGRESO_CREADO',
-            'Se creó el ingreso #' . $id
-        );
-
-        cache()->delete(
-            "dashboard_{$usuarioId}"
+            'Ingreso creado ID: '
+            . $registro['id'],
+            $registro['usuario_id']
         );
 
         Events::trigger(
             'ingreso_creado',
-            $nuevoIngreso
+            $registro
         );
 
-        return $nuevoIngreso;
-    }
-
-    /**
-     * Actualizar ingreso
-     */
-    public function actualizar(
-        int $usuarioId,
-        int $id,
-        array $data
-    )
-    {
-        $ingresoActual =
-            $this->repository->buscar($id);
-
-        if (!$ingresoActual) {
-            throw new Exception(
-                'Ingreso no encontrado.'
-            );
-        }
-
-        $antes =
-            $ingresoActual->toArray();
-
-        $actualizado =
-            $this->repository->actualizar(
-                $id,
-                $data
-            );
-
-        if (!$actualizado) {
-            throw new Exception(
-                'No fue posible actualizar el ingreso.'
-            );
-        }
-
-        $despuesIngreso =
-            $this->repository->buscar($id);
-
-        $this->audit->registrar(
-            $usuarioId,
-            'ACTUALIZAR',
-            'ingresos',
-            $id,
-            $antes,
-            $despuesIngreso->toArray()
-        );
-
-        $this->logs->registrar(
-            $usuarioId,
-            'INGRESO_ACTUALIZADO',
-            'Se actualizó el ingreso #' . $id
-        );
-
-        cache()->delete(
-            "dashboard_{$usuarioId}"
-        );
-
-        Events::trigger(
-            'ingreso_actualizado',
-            $despuesIngreso
-        );
-
-        return $despuesIngreso;
-    }
-
-    /**
-     * Eliminar ingreso (Soft Delete)
-     */
-    public function eliminar(
-        int $usuarioId,
-        int $id
-    ): bool
-    {
-        $ingreso =
-            $this->repository->buscar($id);
-
-        if (!$ingreso) {
-            throw new Exception(
-                'Ingreso no encontrado.'
-            );
-        }
-
-        $antes =
-            $ingreso->toArray();
-
-        $eliminado =
-            $this->repository->eliminar($id);
-
-        if (!$eliminado) {
-            throw new Exception(
-                'No fue posible eliminar el ingreso.'
-            );
-        }
-
-        $this->audit->registrar(
-            $usuarioId,
-            'ELIMINAR',
-            'ingresos',
-            $id,
-            $antes,
-            []
-        );
-
-        $this->logs->registrar(
-            $usuarioId,
-            'INGRESO_ELIMINADO',
-            'Se eliminó el ingreso #' . $id
-        );
-
-        cache()->delete(
-            "dashboard_{$usuarioId}"
-        );
-
-        Events::trigger(
-            'ingreso_eliminado',
-            $ingreso
-        );
-
-        return true;
-    }
-
-    /**
-     * Obtener ingreso por ID
-     */
-    public function obtener(
-        int $id
-    )
-    {
-        return $this->repository->buscar($id);
-    }
-
-    /**
-     * Listar ingresos de usuario
-     */
-    public function listarPorUsuario(
-        int $usuarioId
-    ): array
-    {
-        return $this->repository
-            ->listarPorUsuario($usuarioId);
+        return $registro;
     }
 }
