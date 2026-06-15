@@ -100,7 +100,13 @@ Events::on(
         );
     }
 );
+use App\Listeners\GastoListener;
 
+
+Events::on(
+    'gasto_creado',
+    [new GastoListener(), 'handle']
+);
 Events::on(
     'presupuesto_creado',
     static function ($presupuesto)
@@ -111,6 +117,14 @@ Events::on(
             . $presupuesto->id
         );
     }
+);
+
+
+use App\Listeners\IngresoListener;
+
+Events::on(
+    'ingreso_creado',
+    [new IngresoListener(), 'handle']
 );
 Events::on('pre_system', static function (): void {
     if (ENVIRONMENT !== 'testing') {

@@ -2,186 +2,168 @@
 
 namespace App\Services;
 
-use App\Repositories\PresupuestoRepository;
-use App\Repositories\GastoRepository;
-use CodeIgniter\Events\Events;
-
+use App\Models\PresupuestoModel;
+use Ramsey\Uuid\Uuid;
+use Exception;
 
 class PresupuestoService
 {
-    protected PresupuestoRepository $repository;
-
-    protected GastoRepository $gastos;
-
-    protected AuditService $audit;
-
-    protected LogService $logs;
-
-    protected NotificationService $notifications;
+    protected PresupuestoModel $presupuestos;
 
     public function __construct()
     {
-        $this->repository =
-            new PresupuestoRepository();
-
-        $this->gastos =
-            new GastoRepository();
-
-        $this->audit =
-            new AuditService();
-
-        $this->logs =
-            new LogService();
-
-        $this->notifications =
-            new NotificationService();
+        $this->presupuestos =
+            new PresupuestoModel();
     }
 
-    public function crear(
-        int $usuarioId,
-        array $data
-    )
+    public function crear(array $data): array
     {
-        $data['usuario_id'] =
-            $usuarioId;
+        if (
+            strtotime($data['fecha_fin'])
+            <
+            strtotime($data['fecha_inicio'])
+        ) {
+            throw new Exception(
+                'La fecha final no puede ser menor'
+            );
+        }
+
+        $nuevo = [
+
+            'uuid' =>
+                Uuid::uuid4()->toString(),
+
+            'usuario_id' =>
+                $data['usuario_id'],
+
+            'categoria_id' =>
+                $data['categoria_id'] ?? null,
+
+            'nombre' =>
+                $data['nombre'],
+
+            'monto' =>
+                $data['monto'],
+
+            'gastado' =>
+                0,
+
+            'fecha_inicio' =>
+                $data['fecha_inicio'],
+
+            'fecha_fin' =>
+                $data['fecha_fin'],
+
+            'estado' =>
+                'activo'
+        ];
 
         $id =
-            $this->repository
-                ->crear($data);
+            $this->presupuestos->insert(
+                $nuevo
+            );
 
-        $nuevo =
-            $this->repository
-                ->buscar($id);
-
-        $this->audit->registrar(
-            $usuarioId,
-            'CREAR',
-            'presupuestos',
-            $id,
-            [],
-            $nuevo->toArray()
-        );
-
-        $this->logs->registrar(
-            $usuarioId,
-            'PRESUPUESTO_CREADO',
-            'Presupuesto #' . $id
-        );
-
-        cache()->delete(
-            "dashboard_{$usuarioId}"
-        );
-
-        Events::trigger(
-            'presupuesto_creado',
-            $nuevo
-        );
-
-        return $nuevo;
-    }
-
-    public function verificarLimites(
-        int $presupuestoId
-    )
-    {
         $presupuesto =
-            $this->repository
-                ->buscar(
-                    $presupuestoId
-                );
+            $this->presupuestos->find($id);
 
-        if(!$presupuesto)
-        {
-            return;
-        }
+        service('auditService')
+            ->registrar(
+                $presupuesto['usuario_id'],
+                'CREAR',
+                'presupuestos',
+                $presupuesto['id'],
+                null,
+                $presupuesto
+            );
 
-        $consumido =
-            $this->gastos
-                ->totalConsumidoPresupuesto(
-                    $presupuestoId
-                );
+        service('logService')
+            ->info(
+                'PRESUPUESTO_CREADO',
+                'Presupuesto creado ID '
+                . $presupuesto['id'],
+                $presupuesto['usuario_id']
+            );
 
-        $porcentaje =
-            (
-                $consumido
-                /
-                $presupuesto->monto_limite
-            ) * 100;
-
-        if($porcentaje >= 100)
-        {
-            $this->notifications
-                ->crear(
-                    $presupuesto->usuario_id,
-                    'Presupuesto agotado',
-                    'Has superado tu presupuesto.'
-                );
-        }
-        elseif($porcentaje >= 90)
-        {
-            $this->notifications
-                ->crear(
-                    $presupuesto->usuario_id,
-                    'Presupuesto al 90%',
-                    'Tu presupuesto está casi agotado.'
-                );
-        }
-        elseif($porcentaje >= 80)
-        {
-            $this->notifications
-                ->crear(
-                    $presupuesto->usuario_id,
-                    'Presupuesto al 80%',
-                    'Has consumido el 80% del presupuesto.'
-                );
-        }
-        
-    }
-    public function resumen(
-    int $presupuestoId
-    ): array
-    {
-    $presupuesto =
-        $this->repository
-            ->buscar($presupuestoId);
-
-    if (!$presupuesto)
-    {
-        throw new \Exception(
-            'Presupuesto no encontrado'
-        );
+        return $presupuesto;
     }
 
-    $consumido =
-        $this->gastos
-            ->totalConsumidoPresupuesto(
+    public function actualizarGastado(
+        int $presupuestoId,
+        float $monto
+    ): void {
+
+        $presupuesto =
+            $this->presupuestos->find(
                 $presupuestoId
             );
 
-    $limite =
-        (float)$presupuesto->monto_limite;
+        if (!$presupuesto) {
+            return;
+        }
 
-    $disponible =
-        max(
-            0,
-            $limite - $consumido
+        $gastado =
+            (float)$presupuesto['gastado']
+            +
+            $monto;
+
+        $estado =
+            $this->determinarEstado(
+                $gastado,
+                (float)$presupuesto['monto']
+            );
+
+        $this->presupuestos->update(
+            $presupuestoId,
+            [
+                'gastado' => $gastado,
+                'estado' => $estado
+            ]
         );
+    }
 
-    $porcentaje =
-        $limite > 0
-            ? round(
-                ($consumido / $limite) * 100,
-                2
-            )
-            : 0;
+    private function determinarEstado(
+        float $gastado,
+        float $limite
+    ): string {
 
-    return [
-        'presupuesto_id' => $presupuestoId,
-        'limite' => $limite,
-        'consumido' => $consumido,
-        'disponible' => $disponible,
-        'porcentaje' => $porcentaje
-    ];
-}
+        if ($gastado > $limite) {
+            return 'excedido';
+        }
 
+        if ($gastado >= $limite) {
+            return 'agotado';
+        }
+
+        return 'activo';
+    }
+
+    public function porcentajeConsumido(
+        int $presupuestoId
+    ): float {
+
+        $presupuesto =
+            $this->presupuestos->find(
+                $presupuestoId
+            );
+
+        if (!$presupuesto) {
+            return 0;
+        }
+
+        if (
+            (float)$presupuesto['monto']
+            <= 0
+        ) {
+            return 0;
+        }
+
+        return round(
+            (
+                $presupuesto['gastado']
+                /
+                $presupuesto['monto']
+            ) * 100,
+            2
+        );
+    }
 }

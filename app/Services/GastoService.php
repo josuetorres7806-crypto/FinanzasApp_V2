@@ -2,251 +2,154 @@
 
 namespace App\Services;
 
-use App\Repositories\GastoRepository;
+use App\Models\GastoModel;
+use App\Models\CategoriaModel;
+use App\Models\PresupuestoModel;
+
+use Ramsey\Uuid\Uuid;
+
+use Exception;
+
 use CodeIgniter\Events\Events;
 
 class GastoService
 {
-    protected GastoRepository $repository;
-    protected AuditService $audit;
-    protected LogService $logs;
-    protected NotificationService $notifications;
+    protected GastoModel $gastos;
+
+    protected CategoriaModel $categorias;
+
+    protected PresupuestoModel $presupuestos;
 
     public function __construct()
     {
-        $this->repository = new GastoRepository();
-        $this->audit = new AuditService();
-        $this->logs = new LogService();
-        $this->notifications = new NotificationService();
+        $this->gastos = new GastoModel();
+
+        $this->categorias = new CategoriaModel();
+
+        $this->presupuestos = new PresupuestoModel();
     }
 
-    /**
-     * Crear gasto
-     */
-    public function crear(
-        int $usuarioId,
-        array $data
-    )
+    public function crear(array $data): array
     {
-        $data['usuario_id'] = $usuarioId;
+        $categoria = $this->categorias->find(
+            $data['categoria_id']
+        );
 
-        $id = $this->repository->crear($data);
-
-        if (!$id) {
-            throw new \Exception(
-                'No fue posible crear el gasto.'
+        if (!$categoria) {
+            throw new Exception(
+                'Categoría no encontrada'
             );
         }
 
-        $nuevo = $this->repository->buscar($id);
-
-        if (!$nuevo) {
-            throw new \Exception(
-                'No fue posible recuperar el gasto creado.'
+        if ($categoria['tipo'] !== 'gasto') {
+            throw new Exception(
+                'La categoría debe ser de gasto'
             );
         }
 
-        // Auditoría
-        $this->audit->registrar(
-            $usuarioId,
-            'CREAR',
-            'gastos',
-            $id,
-            [],
-            $nuevo->toArray()
-        );
+        $presupuesto = null;
 
-        // Logs
-        $this->logs->registrar(
-            $usuarioId,
-            'GASTO_CREADO',
-            'Se creó el gasto #' . $id
-        );
+        if (!empty($data['presupuesto_id'])) {
 
-        // Integración con presupuestos
-        if (
-            !empty($nuevo->presupuesto_id)
-        ) {
-            $presupuestoService =
-                new PresupuestoService();
-
-            $presupuestoService
-                ->verificarLimites(
-                    (int)$nuevo->presupuesto_id
+            $presupuesto =
+                $this->presupuestos->find(
+                    $data['presupuesto_id']
                 );
+
+            if (!$presupuesto) {
+                throw new Exception(
+                    'Presupuesto no encontrado'
+                );
+            }
         }
 
-        cache()->delete(
-            "dashboard_{$usuarioId}"
-        );
+        $nuevo = [
+
+            'uuid' =>
+                Uuid::uuid4()->toString(),
+
+            'usuario_id' =>
+                $data['usuario_id'],
+
+            'categoria_id' =>
+                $data['categoria_id'],
+
+            'presupuesto_id' =>
+                $data['presupuesto_id'] ?? null,
+
+            'descripcion' =>
+                $data['descripcion'] ?? null,
+
+            'monto' =>
+                $data['monto'],
+
+            'fecha' =>
+                $data['fecha']
+        ];
+
+        $id =
+            $this->gastos->insert(
+                $nuevo
+            );
+
+        $gasto =
+            $this->gastos->find($id);
+
+        if ($presupuesto) {
+
+            $gastado =
+                (float)$presupuesto['gastado']
+                +
+                (float)$gasto['monto'];
+
+            $estado = 'activo';
+
+            if (
+                $gastado >=
+                (float)$presupuesto['monto']
+            ) {
+                $estado = 'agotado';
+            }
+
+            if (
+                $gastado >
+                (float)$presupuesto['monto']
+            ) {
+                $estado = 'excedido';
+            }
+
+            $this->presupuestos->update(
+                $presupuesto['id'],
+                [
+                    'gastado' => $gastado,
+                    'estado' => $estado
+                ]
+            );
+        }
+
+        service('auditService')
+            ->registrar(
+                $gasto['usuario_id'],
+                'CREAR',
+                'gastos',
+                $gasto['id'],
+                null,
+                $gasto
+            );
+
+        service('logService')
+            ->info(
+                'GASTO_CREADO',
+                'Gasto creado ID '
+                . $gasto['id'],
+                $gasto['usuario_id']
+            );
 
         Events::trigger(
             'gasto_creado',
-            $nuevo
-        );
-
-        return $nuevo;
-    }
-
-    /**
-     * Actualizar gasto
-     */
-    public function actualizar(
-        int $usuarioId,
-        int $id,
-        array $data
-    )
-    {
-        $antes =
-            $this->repository->buscar($id);
-
-        if (!$antes) {
-            throw new \Exception(
-                'Gasto no encontrado.'
-            );
-        }
-
-        $actualizado =
-            $this->repository->actualizar(
-                $id,
-                $data
-            );
-
-        if (!$actualizado) {
-            throw new \Exception(
-                'No fue posible actualizar el gasto.'
-            );
-        }
-
-        $despues =
-            $this->repository->buscar($id);
-
-        if (!$despues) {
-            throw new \Exception(
-                'No fue posible recuperar el gasto actualizado.'
-            );
-        }
-
-        // Auditoría
-        $this->audit->registrar(
-            $usuarioId,
-            'ACTUALIZAR',
-            'gastos',
-            $id,
-            $antes->toArray(),
-            $despues->toArray()
-        );
-
-        // Logs
-        $this->logs->registrar(
-            $usuarioId,
-            'GASTO_ACTUALIZADO',
-            'Se actualizó el gasto #' . $id
-        );
-
-        // Integración con presupuestos
-        if (
-            !empty($despues->presupuesto_id)
-        ) {
-            $presupuestoService =
-                new PresupuestoService();
-
-            $presupuestoService
-                ->verificarLimites(
-                    (int)$despues->presupuesto_id
-                );
-        }
-
-        cache()->delete(
-            "dashboard_{$usuarioId}"
-        );
-
-        Events::trigger(
-            'gasto_actualizado',
-            $despues
-        );
-
-        return $despues;
-    }
-
-    /**
-     * Eliminar gasto
-     */
-    public function eliminar(
-        int $usuarioId,
-        int $id
-    ): bool
-    {
-        $gasto =
-            $this->repository->buscar($id);
-
-        if (!$gasto) {
-            throw new \Exception(
-                'Gasto no encontrado.'
-            );
-        }
-
-        $antes =
-            $gasto->toArray();
-
-        $eliminado =
-            $this->repository->eliminar($id);
-
-        if (!$eliminado) {
-            throw new \Exception(
-                'No fue posible eliminar el gasto.'
-            );
-        }
-
-        // Auditoría
-        $this->audit->registrar(
-            $usuarioId,
-            'ELIMINAR',
-            'gastos',
-            $id,
-            $antes,
-            []
-        );
-
-        // Logs
-        $this->logs->registrar(
-            $usuarioId,
-            'GASTO_ELIMINADO',
-            'Se eliminó el gasto #' . $id
-        );
-
-        cache()->delete(
-            "dashboard_{$usuarioId}"
-        );
-
-        Events::trigger(
-            'gasto_eliminado',
             $gasto
         );
 
-        return true;
-    }
-
-    /**
-     * Obtener gasto por ID
-     */
-    public function obtener(
-        int $id
-    )
-    {
-        return $this->repository->buscar($id);
-    }
-
-    /**
-     * Listar gastos por usuario
-     */
-    public function listarPorUsuario(
-        int $usuarioId
-    ): array
-    {
-        return $this->repository
-            ->listarPorUsuario(
-                $usuarioId
-            );
+        return $gasto;
     }
 }

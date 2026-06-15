@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use CodeIgniter\Model;
-use App\Entities\Presupuesto;
 
 class PresupuestoModel extends Model
 {
@@ -11,27 +10,32 @@ class PresupuestoModel extends Model
 
     protected $primaryKey = 'id';
 
-    protected $returnType =
-        Presupuesto::class;
-
-    protected $allowedFields = [
-        'usuario_id',
-        'categoria_id',
-        'nombre',
-        'descripcion',
-        'monto_limite',
-        'fecha_inicio',
-        'fecha_fin',
-        'activo'
-    ];
+    protected $returnType = 'array';
 
     protected $useSoftDeletes = true;
 
     protected $useTimestamps = true;
 
-    protected $createdField = 'created_at';
+    protected $dateFormat = 'datetime';
 
-    protected $updatedField = 'updated_at';
+    protected $allowedFields = [
 
-    protected $deletedField = 'deleted_at';
+        'uuid',
+
+        'usuario_id',
+
+        'categoria_id',
+
+        'nombre',
+
+        'monto',
+
+        'gastado',
+
+        'fecha_inicio',
+
+        'fecha_fin',
+
+        'estado'
+    ];
 }

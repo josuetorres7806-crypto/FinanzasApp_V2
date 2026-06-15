@@ -2,25 +2,23 @@
 
 namespace App\Listeners;
 
-use App\Services\DashboardService;
-use App\Services\NotificacionService;
 
 class IngresoListener
 {
     public function handle(array $ingreso): void
     {
-        $dashboard =
+     /*   $dashboard =
             new DashboardService();
 
         $dashboard->actualizarCache(
             $ingreso['usuario_id']
         );
-
+        *//*
         if (
             $ingreso['monto'] >= 1000000
         ) {
             $notificaciones =
-                new NotificacionService();
+                new NotificationService();
 
             $notificaciones->crear([
                 'usuario_id' =>
@@ -41,4 +39,4 @@ class IngresoListener
             ]);
         }
     }
-}
+}*/

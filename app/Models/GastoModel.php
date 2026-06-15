@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use CodeIgniter\Model;
-use App\Entities\Gasto;
 
 class GastoModel extends Model
 {
@@ -11,25 +10,28 @@ class GastoModel extends Model
 
     protected $primaryKey = 'id';
 
-    protected $returnType = Gasto::class;
-
-    protected $allowedFields = [
-        'usuario_id',
-        'categoria_id',
-        'presupuesto_id',
-        'descripcion',
-        'monto',
-        'fecha',
-        'notas'
-    ];
+    protected $returnType = 'array';
 
     protected $useSoftDeletes = true;
 
     protected $useTimestamps = true;
 
-    protected $createdField = 'created_at';
+    protected $dateFormat = 'datetime';
 
-    protected $updatedField = 'updated_at';
+    protected $allowedFields = [
 
-    protected $deletedField = 'deleted_at';
+        'uuid',
+
+        'usuario_id',
+
+        'categoria_id',
+
+        'presupuesto_id',
+
+        'descripcion',
+
+        'monto',
+
+        'fecha'
+    ];
 }
