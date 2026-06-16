@@ -12,19 +12,14 @@ class IngresoModel extends Model
 
     protected $returnType = 'array';
 
-    protected $useSoftDeletes = true;
-
-    protected $useTimestamps = true;
-
-    protected $dateFormat = 'datetime';
-
     protected $allowedFields = [
-        'uuid',
         'usuario_id',
         'categoria_id',
-        'meta_ahorro_id',
         'descripcion',
         'monto',
-        'fecha'
+        'fecha',
+        'notas'
     ];
+
+    protected $useTimestamps = false;
 }

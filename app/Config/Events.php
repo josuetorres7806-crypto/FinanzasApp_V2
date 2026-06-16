@@ -120,12 +120,12 @@ Events::on(
 );
 
 
-use App\Listeners\IngresoListener;
+/*use App\Listeners\IngresoListener;
 
 Events::on(
     'ingreso_creado',
     [new IngresoListener(), 'handle']
-);
+);*/
 Events::on('pre_system', static function (): void {
     if (ENVIRONMENT !== 'testing') {
         $value = ini_get('zlib.output_compression');

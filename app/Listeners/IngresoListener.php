@@ -1,5 +1,5 @@
-<?php
-
+ <?php
+/*
 namespace App\Listeners;
 
 
@@ -7,13 +7,13 @@ class IngresoListener
 {
     public function handle(array $ingreso): void
     {
-     /*   $dashboard =
+       $dashboard =
             new DashboardService();
 
         $dashboard->actualizarCache(
             $ingreso['usuario_id']
         );
-        *//*
+
         if (
             $ingreso['monto'] >= 1000000
         ) {

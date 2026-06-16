@@ -24,13 +24,11 @@ class PresupuestoModel extends Model
 
         'usuario_id',
 
-        'categoria_id',
-
         'nombre',
 
-        'monto',
+        'descripcion',
 
-        'gastado',
+        'monto',
 
         'fecha_inicio',
 

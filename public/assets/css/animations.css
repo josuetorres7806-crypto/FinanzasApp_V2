@@ -1,0 +1,15 @@
+.card{
+    transition:.3s;
+}
+
+.card:hover{
+    transform:translateY(-5px);
+}
+
+.sidebar a{
+    transition:.3s;
+}
+
+.sidebar a:hover{
+    padding-left:20px;
+}
